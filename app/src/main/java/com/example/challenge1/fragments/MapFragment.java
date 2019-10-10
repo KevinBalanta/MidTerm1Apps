@@ -1,0 +1,410 @@
+package com.example.challenge1.fragments;
+
+
+import android.Manifest;
+import android.annotation.SuppressLint;
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.os.Bundle;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
+import androidx.fragment.app.Fragment;
+
+import android.provider.Settings;
+import android.transition.TransitionManager;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
+
+
+import com.example.challenge1.R;
+import com.example.challenge1.activities.ArithmeticOperation;
+import com.example.challenge1.activities.MainActivity;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapView;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CameraPosition;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polygon;
+import com.google.android.gms.maps.model.PolygonOptions;
+import com.google.maps.android.PolyUtil;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * A simple {@link Fragment} subclass.
+ */
+
+//GoogleMap.OnMapLongClickListener
+//
+public class MapFragment extends Fragment implements OnMapReadyCallback , LocationListener {
+
+    private View viewRoot;
+    private MapView mapView;
+
+
+
+    private GoogleMap mMap;
+
+    private boolean enableToAdd = true;
+    private List<Address> adress;
+    private Geocoder geoCoder;
+
+    private LocationManager locationManager;
+    private Location currentLocation;
+    private Marker myMarker;
+    private List<Marker> markers;
+
+    private TextView infoTv;
+    private Button okBtn;
+    private EditText markerNameEt;
+    private double latU;
+    private double longiU;
+
+    private Polygon bristoCoord;
+    private Polygon libraryCoord;
+    private Polygon centralCoord;
+
+
+    private Button buyBut;
+
+    private boolean isInZoneFirstTime;
+
+
+    public MapFragment() {
+        // Required empty public constructor
+    }
+
+
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                             Bundle savedInstanceState) {
+        // Inflate the layout for this fragment
+        viewRoot = inflater.inflate(R.layout.fragment_map, container, false);
+
+        ActivityCompat.requestPermissions(getActivity(), new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION}, 11);
+        final ViewGroup vwg = viewRoot.findViewById(R.id.map_container);
+
+        buyBut = viewRoot.findViewById(R.id.buy_option);
+        infoTv = viewRoot.findViewById(R.id.information_tv);
+        markerNameEt = viewRoot.findViewById(R.id.marker_et);
+
+        buyBut.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                ((MainActivity)getActivity()).buyProcess();
+            }
+        });
+
+       /*  okBtn = viewRoot.findViewById(R.id.ok_btn);
+        okBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // se agrega el marker en mapa y array y se nombra, con su snippet ubication
+                TransitionManager.beginDelayedTransition(vwg);
+                //TO DO
+               if(!markerNameEt.getText().toString().equals("") && markerNameEt.getText().toString() != null){
+                    Marker marker = mMap.addMarker(new MarkerOptions().position(new LatLng(latU, longiU)).title(markerNameEt.getText().toString()).snippet(calculateDistance(latU, longiU) +"\n"+ getMarkerAdress(latU, longiU)));
+                    markers.add(marker);
+                    calculateDistances();
+                    disableMarkerEdit();
+                }else{
+                    showToast("Please set the marker´s name");
+                }
+
+            }
+        });*/
+
+        return viewRoot;
+    }
+
+    public void showToast(String msg) {
+        Toast.makeText(this.getContext(), msg, Toast.LENGTH_LONG).show();
+    }
+
+
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+
+        mapView = (MapView) viewRoot.findViewById(R.id.map);
+        if (mapView != null) {
+            mapView.onCreate(null);
+            mapView.onResume();
+            mapView.getMapAsync(this);
+        }
+        this.checkIfGpsIsEnabled();
+
+
+
+
+        markers = new ArrayList<>();
+
+
+
+    }
+
+
+
+    @Override
+    public void onResume() {
+        super.onResume();
+
+        checkIfGpsIsEnabled();
+
+    }
+
+
+
+
+
+    //si está a menos de 10 mts, poner bienvenido a xxxx
+    private void calculateDistances(){
+
+        Marker mar = null;
+        double distance = 0;
+        for (Marker mark : markers) {
+            if(mar == null){
+                mar = mark;
+                distance = calculate(mark.getPosition().latitude, mark.getPosition().longitude);
+                distance = distance*111.12 *1000;
+            }else{
+                double a = calculate(mark.getPosition().latitude, mark.getPosition().longitude);
+                a = a*111.12 *1000;
+                if(a < distance){
+                    mar = mark;
+                    distance = a;
+                }
+            }
+            mark.setSnippet( calculateDistance(mark.getPosition().latitude, mark.getPosition().longitude));
+        }
+
+            String inf = "";
+            if (distance > 15) {
+                inf = "Usted está cerca de " +mar.getTitle() +"\n"+getMarkerAdress(mar.getPosition().latitude, mar.getPosition().longitude);
+            } else {
+                inf = "LLEGASTE A : " +mar.getTitle();
+            }
+
+
+
+        infoTv.setText(inf);
+
+
+    }
+
+    private double calculate(double lat, double longit){
+        double distance = Math.sqrt(Math.pow(myMarker.getPosition().latitude - lat, 2) +Math.pow(myMarker.getPosition().longitude - longit, 2) );
+
+        return distance  ;
+    }
+
+    private String calculateDistance(double lat, double longit){
+        double distance = Math.sqrt(Math.pow(myMarker.getPosition().latitude - lat, 2) +Math.pow(myMarker.getPosition().longitude - longit, 2) );
+        distance = distance*111.12 *1000;
+        return "Distance to the User:" + distance +" Mts" ;
+    }
+
+    private void checkIfGpsIsEnabled() {
+        try {
+            int gpsSignal = Settings.Secure.getInt(getActivity().getContentResolver(), Settings.Secure.LOCATION_MODE);
+            if (gpsSignal == 0) {
+                //NO HAY SEÑAL DE GPS
+                showInfoAlert();
+
+            }
+        } catch (Settings.SettingNotFoundException e) {
+            e.printStackTrace();
+
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    @Override
+    public void onMapReady(GoogleMap googleMap) {
+        mMap = googleMap;
+       // mMap.setOnMapLongClickListener(this);
+        geoCoder = new Geocoder(getContext(), Locale.getDefault());
+        locationManager = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
+
+       /* if (!permission && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this,Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    Activity#requestPermissions
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION}, 11);
+
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for Activity#requestPermissions for more details.
+
+        }
+       */
+
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, this);
+
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 1000, 0, this);
+
+        bristoCoord = mMap.addPolygon(new PolygonOptions().add(new LatLng(3.3425, -76.528966),
+                new LatLng(3.342752, -76.528399),
+                new LatLng(3.342613, -76.528233)
+                , new LatLng(3.341729, -76.528286)
+                , new LatLng(3.341779, -76.529014)));
+
+        libraryCoord = mMap.addPolygon(new PolygonOptions().add(new LatLng(3.341943 , -76.530078), new LatLng(3.34193,  -76.529807), new LatLng(3.341675, -76.529809) ,new LatLng(3.341687, -76.53008)
+                ));
+       centralCoord = mMap.addPolygon(new PolygonOptions().add(new LatLng( 3.342249, -76.529694), new LatLng(3.342257, -76.52952), new LatLng(3.341964, -76.529541)
+                , new LatLng(3.342002, -76.529683)));
+
+        // Add a marker in Sydney and move the camera
+        //LatLng sydney = new LatLng(-34, 151);
+        //mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney").snippet("INFO"));
+        //mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
+    }
+
+    private void showInfoAlert() {
+        new AlertDialog.Builder(getContext()).setTitle("GPS Signal").setMessage("Would you like to enable the GPS?").setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                startActivity(intent);
+            }
+        }).setNegativeButton("Cancel", null).show();
+    }
+
+    private String getMarkerAdress(double latitude, double longitude){
+        double lat = latitude;
+        double longi = longitude;
+
+        try {
+            adress = geoCoder.getFromLocation(lat, longi, 1);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        String adr = adress.get(0).getAddressLine(0);
+        String city = adress.get(0).getLocality();
+
+        String loc = (adress.get(0).getAddressLine(0) == null) ? "" : adress.get(0).getAddressLine(0)  +"\n"+ " City: "+ ((adress.get(0).getLocality() == null) ? "" : adress.get(0).getLocality());
+
+        return loc;
+    }
+
+    private void enableMarkerEdit(){
+        markerNameEt.setVisibility(View.VISIBLE);
+        okBtn.setVisibility(View.VISIBLE);
+        enableToAdd = false;
+
+    }
+
+    private void disableMarkerEdit() {
+        markerNameEt.setText("");
+        markerNameEt.setVisibility(View.GONE);
+
+        okBtn.setVisibility(View.GONE);
+        enableToAdd = true;
+    }
+
+ /*   @Override
+    public void onMapLongClick(LatLng latLng) {
+
+        latU = latLng.latitude;
+        longiU = latLng.longitude;
+
+
+            // se habilitan el edit text y el button del nombrado del marker
+            // si se da ok se crea el marker y se agrega a la lista de markers
+            if(enableToAdd){
+                enableMarkerEdit();
+            }else{
+                showToast("Please set the marker´s name");
+            }
+
+        }*/
+
+
+
+    @Override
+    public void onLocationChanged(Location location) {
+        currentLocation = location;
+
+            if (myMarker == null) {
+
+                myMarker = mMap.addMarker(new MarkerOptions().position(new LatLng(location.getLatitude(), location.getLongitude())).title("USER").snippet(getMarkerAdress(location.getLatitude(), location.getLongitude())));
+                myMarker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_ubication));
+                infoTv.setText("We have found you! :)");
+            } else {
+                myMarker.setPosition(new LatLng(location.getLatitude(), location.getLongitude()));
+                myMarker.setSnippet(getMarkerAdress(location.getLatitude(), location.getLongitude()));
+
+                if(PolyUtil.containsLocation(myMarker.getPosition(), libraryCoord.getPoints(), true) || PolyUtil.containsLocation(myMarker.getPosition(), centralCoord.getPoints(), true) ||
+                        PolyUtil.containsLocation(myMarker.getPosition(),  bristoCoord.getPoints(), true)){
+                    if(!isInZoneFirstTime){
+                        isInZoneFirstTime = true;
+                        ((MainActivity)getActivity()).playGame();
+                    }
+
+                }else{
+                    if(isInZoneFirstTime){
+                        isInZoneFirstTime = false;
+                    }
+                }
+
+                /*if(!markers.isEmpty()) {
+                    calculateDistances();
+                }*/
+            }
+
+         //CALCULATE IF IS INSIDE A POLYGON *+++++++++++++++++++++ with PolyUtil.boolean isInIcesi =  PolyUtil.containsLocation(coord, icesiArea.getPoints(), true);
+
+            zoomToLocationMarker(myMarker);
+
+    }
+
+    private void zoomToLocationMarker(Marker location){
+        CameraPosition camera = new CameraPosition.Builder().target(new LatLng(location.getPosition().latitude, location.getPosition().longitude)).zoom(17).tilt(30).build();
+
+        mMap.animateCamera(CameraUpdateFactory.newCameraPosition(camera));
+    }
+
+    @Override
+    public void onStatusChanged(String s, int i, Bundle bundle) {
+
+    }
+
+    @Override
+    public void onProviderEnabled(String s) {
+
+    }
+
+    @Override
+    public void onProviderDisabled(String s) {
+
+    }
+
+}

@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">challenge1</string>
+    <string name="title_activity_maps">Map</string>
+
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="title">MidTerm #1 BY: KEVIN BALANTA MUÑOZ</string>
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="information">Juega y gana puntos para reclamar premios en la tienda Icesi</string>
+    <string name="operation_title">GO! SOLVE THE OPERATION</string>
+    <string name="opertion_button_text">OK</string>
+    <string name="welcome">Bienvenido a Tienda Icesi Virtual</string>
+    <string name="score_info">Tu Puntaje:</string>
+</resources>
